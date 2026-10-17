@@ -1314,7 +1314,7 @@
       "appIconAlt": "Motrix 应用图标",
       "version": "版本 {{version}}",
       "tagline": "在内容坍缩之前，保存真正值得留下的东西，让美好进入你的收藏轨道。",
-      "webVersionNote": "此 Web 版本由部署管理员负责更新。",
+      "webVersionNote": "安卓版本由MOYIre(铭茗)提供更新",
       "update": {
         "title": "应用更新",
         "currentVersion": "当前版本 {{version}}",

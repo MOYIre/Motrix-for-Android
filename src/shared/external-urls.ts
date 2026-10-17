@@ -17,7 +17,7 @@ export const EXTERNAL_URLS = {
       'https://github.com/motrixapp/motrix-extension#manual-browser-workflow-development',
   },
   github: {
-    repository: 'https://github.com/agalwood/Motrix/',
+    repository: 'https://github.com/MOYIre/Motrix-of-Android/',
     author: 'https://github.com/agalwood/',
     issues: 'https://github.com/agalwood/Motrix/issues/',
     ffmpegStaticReleases:
