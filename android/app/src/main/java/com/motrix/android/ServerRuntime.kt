@@ -70,7 +70,7 @@ class ServerRuntime(private val context: Context) {
             if (!public.isDirectory) {
                 return@runCatching false
             }
-            val probe = File(public, ".motrix-write-probe-${Process.myPid()}")
+            val probe = File(public, ".motrix-write-probe-${android.os.Process.myPid()}")
             val created = probe.createNewFile()
             if (created) probe.delete()
             created
