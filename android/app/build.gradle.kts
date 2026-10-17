@@ -27,17 +27,13 @@ android {
 
     signingConfigs {
         create("release") {
-            // The key never lives in the repository. The cloud build injects
-            // the values from GitHub Actions secrets; without them the release
-            // falls back to the platform debug signing so builds keep working.
-            val keystoreBase64 = System.getenv("ANDROID_KEYSTORE_BASE64")
-            if (!keystoreBase64.isNullOrBlank()) {
-                val store = rootProject.layout.buildDirectory
-                    .file("keystore/release.jks").get().asFile
-                store.parentFile.mkdirs()
-                store.writeBytes(
-                    java.util.Base64.getDecoder().decode(keystoreBase64)
-                )
+            // The key never lives in the repository. The cloud build decrypts
+            // it (from GitHub Actions secrets) into the build directory; when
+            // the secrets are missing the release falls back to the platform
+            // debug signing so builds keep working.
+            val store = rootProject.layout.buildDirectory
+                .file("keystore/release.jks").get().asFile
+            if (store.isFile) {
                 storeFile = store
                 storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
                 keyPassword = System.getenv("ANDROID_KEY_PASSWORD")

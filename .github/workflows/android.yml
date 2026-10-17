@@ -150,6 +150,13 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         working-directory: android
         run: |
+          set -euo pipefail
+          # Decrypt the signing key into the build directory; when the secrets
+          # are missing the Gradle config falls back to debug signing.
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            mkdir -p build/keystore
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > build/keystore/release.jks
+          fi
           gradle --no-daemon assembleRelease
 
       - name: Collect APK
