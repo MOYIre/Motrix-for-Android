@@ -1,5 +1,3 @@
-import java.util.Properties
-
 // Application shell for Motrix on Android.
 //
 // There are no library dependencies on purpose: the module is a WebView plus a
@@ -9,13 +7,6 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android") version "2.0.21"
-}
-
-val keystorePropertiesFile = rootProject.file("keystore/keystore.properties")
-val keystoreProperties = Properties().apply {
-    if (keystorePropertiesFile.exists()) {
-        keystorePropertiesFile.inputStream().use { load(it) }
-    }
 }
 
 android {
@@ -36,11 +27,21 @@ android {
 
     signingConfigs {
         create("release") {
-            if (keystorePropertiesFile.exists()) {
-                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
+            // The key never lives in the repository. The cloud build injects
+            // the values from GitHub Actions secrets; without them the release
+            // falls back to the platform debug signing so builds keep working.
+            val keystoreBase64 = System.getenv("ANDROID_KEYSTORE_BASE64")
+            if (!keystoreBase64.isNullOrBlank()) {
+                val store = rootProject.layout.buildDirectory
+                    .file("keystore/release.jks").get().asFile
+                store.parentFile.mkdirs()
+                store.writeBytes(
+                    java.util.Base64.getDecoder().decode(keystoreBase64)
+                )
+                storeFile = store
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
             }
         }
     }

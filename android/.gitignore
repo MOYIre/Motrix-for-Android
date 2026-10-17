@@ -13,3 +13,7 @@ build/
 local.properties
 *.iml
 .idea/
+
+# Signing material is provisioned into GitHub Actions secrets, never the
+# repository; see scripts/android/create-release-keystore.mjs.
+keystore/

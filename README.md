@@ -28,8 +28,8 @@ Download `app-release.apk` from the latest release:
 
 Notes:
 
-- The APK is signed with a committed build key — fine for personal installs,
-  never for store publishing.
+- The APK is signed by the cloud build with a key managed in repository
+  secrets; the repository itself contains no keystore.
 - Granting "All files access" lets downloads land in the public `Download`
   folder; without it they go to app-private storage instead.
 - The interface defaults to Simplified Chinese; switch it from the app's

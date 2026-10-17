@@ -72,9 +72,9 @@ verified against their SHA512 digests.
 - **Storage.** The app requests all-files access (the download-manager category
   on Android 11+), because tasks write directly to user-visible folders such as
   `Download`.
-- **Signing.** `android/keystore/keystore.properties` points at a committed
-  build key. It exists so cloud builds need no secrets; replace it with a
-  private keystore before publishing anywhere.
+- **Signing.** The release key lives in GitHub Actions secrets
+  (`ANDROID_KEYSTORE_*`); nothing is committed to the repository. Provision it
+  once with `scripts/android/create-release-keystore.mjs`.
 - **Licensing.** The APK redistributes aria2 (GPLv2-or-later) together with Node
   (MIT) and their shared libraries. Any public distribution must ship the
   corresponding license texts and, for the GPL components, the source or a

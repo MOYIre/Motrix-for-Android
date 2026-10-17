@@ -62,8 +62,8 @@ pnpm run build:android-runtime -- \
 - **单一 ABI。** 运行时构件只有 `arm64-v8a`。
 - **存储。** 应用会申请所有文件访问权限（Android 11+ 的下载管理器类别），因为任务
   直接写入 `Download` 等用户可见目录。
-- **签名。** `android/keystore/keystore.properties` 指向一个已提交的构建密钥，目的是
-  让云构建不需要任何 secret；对外发布前请替换为私有密钥库。
+- **签名。** 签名密钥保存在 GitHub Actions Secrets（`ANDROID_KEYSTORE_*`）中，
+  仓库内不存放任何密钥；用 `scripts/android/create-release-keystore.mjs` 一次性配置。
 - **许可。** APK 重新分发了 aria2（GPLv2 或更高）以及 Node（MIT）和它们的共享库。
   任何公开分发都必须附带相应许可证文本，对 GPL 组件还需附带源码或书面提供承诺。
 - **前台服务。** 下载运行在 `dataSync` 前台服务中，因此应用退到后台后引擎仍会继续工作。
