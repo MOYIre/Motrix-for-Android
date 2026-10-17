@@ -201,6 +201,24 @@ async function extractDeb(bytes, destDir, label) {
   }
 }
 
+/**
+ * Locate a payload file inside an unpacked Termux package. Termux archives
+ * carry the installation prefix (`data/data/com.termux/files/usr/...`) because
+ * dpkg is rooted at it, so the payload is not directly under the extraction
+ * directory.
+ */
+export function locateProvided(root, provided, exists = existsSync) {
+  const candidates = [
+    path.join(root, 'data/data/com.termux/files/usr', provided),
+    path.join(root, 'usr', provided),
+    path.join(root, provided),
+  ]
+  for (const candidate of candidates) {
+    if (exists(candidate)) return candidate
+  }
+  return undefined
+}
+
 async function copyFromPrefix(prefix, out, manifest) {
   const binaries = [
     ['bin/node', 'bin/node'],
@@ -259,9 +277,10 @@ async function fetchFromDebs(out, manifest) {
     let copied = 0
     for (const spec of Object.values(manifest.packages)) {
       for (const provided of spec.provides) {
-        const source = path.join(unpackRoot, provided)
-        if (!existsSync(source)) throw new Error(`deb payload missing ${provided}`)
+        const source = locateProvided(unpackRoot, provided)
+        if (!source) throw new Error(`deb payload missing ${provided}`)
         const target = path.join(out, provided)
+        await mkdir(path.dirname(target), { recursive: true })
         await copyFile(source, target)
         if (provided.startsWith('bin/')) await chmod(target, 0o755)
         copied += 1

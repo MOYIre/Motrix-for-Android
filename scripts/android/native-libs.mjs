@@ -143,13 +143,7 @@ export async function main(argv) {
   const { needed, missing } = collectClosure(
     entries.map((entry) => entry.source),
     sysrootLib,
-    (candidate) => {
-      try {
-        return Boolean(spawnSync('test', ['-e', candidate]).status === 0)
-      } catch {
-        return false
-      }
-    }
+    (candidate) => existsSync(candidate)
   )
   if (missing.length > 0) {
     throw new Error(
