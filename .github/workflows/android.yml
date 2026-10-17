@@ -91,6 +91,12 @@ jobs:
         with:
           targets: aarch64-linux-android
 
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends patchelf zip
+          patchelf --version
+
       - name: Build the finalize sidecar for Android
         env:
           NDK_VERSION: 27.2.12479018

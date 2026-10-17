@@ -4,21 +4,27 @@
 // Materialise the Android arm64 runtime leaves the APK ships: the Node
 // interpreter and the aria2 engine plus the shared libraries they link
 // against. Termux is the only maintained source of bionic-linked builds for
-// both, so this fetches pinned .deb packages from the Termux apt pool and
-// verifies every digest before extraction.
+// both.
+//
+// Filenames and digests come from the live apt index rather than a frozen URL:
+// Termux prunes superseded versions from its pool, so a pinned URL rots while
+// the index stays authoritative. Each package's `expectedVersionPrefix` in the
+// manifest still fails the build loudly if a major version changes under us
+// (a silent Node major jump would change the addon ABI).
 //
 //   node scripts/android/fetch-termux-runtime.mjs --out <dir>
 //   node scripts/android/fetch-termux-runtime.mjs --out <dir> --from-prefix <prefix>
 //
 // `--from-prefix` skips the network entirely and copies the same leaves out of
-// an existing Termux installation, which is how the packaging path is
-// validated on device before a cloud build exists.
+// an existing Termux installation, which is how the packaging path is validated
+// on device before a cloud build exists.
 //
 // Output layout mirrors a sysroot so later stages stay source-agnostic:
 //   <out>/bin/node, <out>/bin/aria2c, <out>/lib/*.so
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { gunzipSync } from 'node:zlib'
 import {
   chmod,
   copyFile,
@@ -37,11 +43,6 @@ import { fileURLToPath } from 'node:url'
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 const REPOSITORY_ROOT = path.resolve(SCRIPT_DIR, '..', '..')
 const MANIFEST_PATH = path.join(SCRIPT_DIR, 'termux-packages.json')
-
-const DEFAULT_REPOS = [
-  'https://packages.termux.dev/apt/termux-main',
-  'https://is.mirror.flokinet.net/termux/termux-main',
-]
 
 export function parseArgs(argv) {
   const out = {}
@@ -62,65 +63,80 @@ export function sha512Hex(bytes) {
   return createHash('sha512').update(bytes).digest('hex')
 }
 
-// Minimal `ar` reader: a .deb is an ar archive whose `data.tar.*` member holds
-// the payload. Reading the container in-process avoids depending on binutils
-// being present in the Android packaging container.
-export function extractArMember(buffer, wanted) {
-  const MAGIC = Buffer.from('!<arch>\n', 'binary')
-  if (!buffer.subarray(0, MAGIC.length).equals(MAGIC)) {
-    throw new Error('not an ar archive')
-  }
-  let offset = MAGIC.length
-  while (offset + 60 <= buffer.length) {
-    const header = buffer.subarray(offset, offset + 60)
-    const name = header.subarray(0, 16).toString('utf8').trim()
-    const size = Number.parseInt(header.subarray(48, 58).toString('utf8').trim(), 10)
-    const dataStart = offset + 60
-    if (!Number.isFinite(size) || dataStart + size > buffer.length) {
-      throw new Error(`corrupt ar member header at offset ${offset}`)
-    }
-    // Names in GNU ar end with '/' and may be terminated by spaces.
-    const normalized = name.replace(/\/+$/, '')
-    if (normalized === wanted) {
-      return buffer.subarray(dataStart, dataStart + size)
-    }
-    offset = dataStart + size + (size % 2)
-  }
-  throw new Error(`ar member not found: ${wanted}`)
+export async function readManifest() {
+  return JSON.parse(await readFile(MANIFEST_PATH, 'utf8'))
 }
 
-export function dataMemberFor(entries) {
-  const preferred = ['data.tar.xz', 'data.tar.gz', 'data.tar.zst', 'data.tar']
-  for (const candidate of preferred) if (entries.includes(candidate)) return candidate
-  throw new Error(`no data member in deb: ${entries.join(', ')}`)
+/**
+ * Parse a Debian `Packages` index into one record per package stanza. Only the
+ * fields this script needs are kept.
+ */
+export function parsePackagesIndex(text) {
+  const records = new Map()
+  for (const stanza of text.split(/\n\s*\n/)) {
+    const fields = new Map()
+    for (const line of stanza.split('\n')) {
+      const match = /^([A-Za-z0-9+-]+):\s*(.*)$/.exec(line)
+      if (match) fields.set(match[1], match[2].trim())
+    }
+    const name = fields.get('Package')
+    if (!name) continue
+    records.set(name, {
+      name,
+      version: fields.get('Version') ?? '',
+      filename: fields.get('Filename') ?? '',
+      sha512: fields.get('SHA512') ?? '',
+    })
+  }
+  return records
 }
 
-async function download(url) {
+async function fetchBytes(url) {
   const response = await fetch(url, { redirect: 'follow' })
   if (!response.ok) throw new Error(`GET ${url} -> ${response.status}`)
   return Buffer.from(await response.arrayBuffer())
 }
 
-async function extractDeb(bytes, destDir, label) {
-  const members = listArMembers(bytes)
-  const member = dataMemberFor(members)
-  const payload = extractArMember(bytes, member)
-  const scratch = await mkdtemp(path.join(tmpdir(), `motrix-deb-${label}-`))
-  try {
-    const archive = path.join(scratch, member)
-    await writeFile(archive, payload)
-    const result = spawnSync('tar', ['-x', '-f', archive, '-C', destDir], {
-      stdio: 'inherit',
-    })
-    if (result.error) throw result.error
-    if (result.status !== 0) {
-      throw new Error(`tar extraction failed for ${label} (${result.status})`)
+/** Resolve the apt index from the first repository base that answers. */
+export async function loadIndex(manifest) {
+  const override = process.env.TERMUX_REPO_BASE
+  const bases = override
+    ? [override, ...manifest.index.bases]
+    : manifest.index.bases
+  const failures = []
+  for (const base of bases) {
+    try {
+      const raw = await fetchBytes(`${base}/${manifest.index.path}`)
+      const text = raw[0] === 0x1f ? gunzipSync(raw).toString('utf8') : raw.toString('utf8')
+      return { base, index: parsePackagesIndex(text) }
+    } catch (error) {
+      failures.push(`${base}: ${error.message}`)
     }
-  } finally {
-    await rm(scratch, { recursive: true, force: true })
   }
+  throw new Error(`no Termux index reachable\n${failures.join('\n')}`)
 }
 
+export function resolvePackage(name, spec, index) {
+  const record = index.get(name)
+  if (!record) throw new Error(`Termux index has no package named ${name}`)
+  if (!record.filename || !record.sha512) {
+    throw new Error(`Termux index record for ${name} lacks Filename/SHA512`)
+  }
+  if (
+    spec.expectedVersionPrefix &&
+    !record.version.startsWith(spec.expectedVersionPrefix)
+  ) {
+    throw new Error(
+      `Termux ${name} is ${record.version}, expected ${spec.expectedVersionPrefix}x; ` +
+        'update scripts/android/termux-packages.json deliberately if this is intended'
+    )
+  }
+  return record
+}
+
+// Minimal `ar` reader: a .deb is an ar archive whose `data.tar.*` member holds
+// the payload. Reading the container in-process avoids depending on binutils
+// being present in the packaging image.
 export function listArMembers(buffer) {
   const MAGIC = Buffer.from('!<arch>\n', 'binary')
   if (!buffer.subarray(0, MAGIC.length).equals(MAGIC)) {
@@ -139,91 +155,119 @@ export function listArMembers(buffer) {
   return names
 }
 
-async function fetchFromRepos(entry, label) {
-  const override = process.env.TERMUX_REPO_BASE
-  const repos = override ? [override, ...DEFAULT_REPOS] : DEFAULT_REPOS
-  const failures = []
-  for (const repo of repos) {
-    const url = `${repo}/${entry.path}`
-    try {
-      const bytes = await download(url)
-      const digest = sha512Hex(bytes)
-      if (digest !== entry.sha512) {
-        throw new Error(
-          `digest mismatch for ${entry.filename}\n  expected ${entry.sha512}\n  actual   ${digest}`
-        )
-      }
-      return bytes
-    } catch (error) {
-      failures.push(`${url}: ${error.message}`)
-    }
+export function extractArMember(buffer, wanted) {
+  const MAGIC = Buffer.from('!<arch>\n', 'binary')
+  if (!buffer.subarray(0, MAGIC.length).equals(MAGIC)) {
+    throw new Error('not an ar archive')
   }
-  throw new Error(
-    `unable to fetch ${label} (${entry.filename}) from any Termux repo\n${failures.join('\n')}`
-  )
+  let offset = MAGIC.length
+  while (offset + 60 <= buffer.length) {
+    const header = buffer.subarray(offset, offset + 60)
+    const name = header.subarray(0, 16).toString('utf8').trim().replace(/\/+$/, '')
+    const size = Number.parseInt(header.subarray(48, 58).toString('utf8').trim(), 10)
+    const dataStart = offset + 60
+    if (!Number.isFinite(size) || dataStart + size > buffer.length) {
+      throw new Error(`corrupt ar member header at offset ${offset}`)
+    }
+    if (name === wanted) return buffer.subarray(dataStart, dataStart + size)
+    offset = dataStart + size + (size % 2)
+  }
+  throw new Error(`ar member not found: ${wanted}`)
 }
 
-async function copyFromPrefix(prefix, out) {
-  const sources = [
+export function dataMemberFor(entries) {
+  for (const candidate of ['data.tar.xz', 'data.tar.gz', 'data.tar.zst', 'data.tar']) {
+    if (entries.includes(candidate)) return candidate
+  }
+  throw new Error(`no data member in deb: ${entries.join(', ')}`)
+}
+
+async function extractDeb(bytes, destDir, label) {
+  const member = dataMemberFor(listArMembers(bytes))
+  const payload = extractArMember(bytes, member)
+  const scratch = await mkdtemp(path.join(tmpdir(), `motrix-deb-${label}-`))
+  try {
+    const archive = path.join(scratch, member)
+    await writeFile(archive, payload)
+    const result = spawnSync('tar', ['-x', '-f', archive, '-C', destDir], {
+      stdio: 'inherit',
+    })
+    if (result.error) throw result.error
+    if (result.status !== 0) {
+      throw new Error(`tar extraction failed for ${label} (${result.status})`)
+    }
+  } finally {
+    await rm(scratch, { recursive: true, force: true })
+  }
+}
+
+async function copyFromPrefix(prefix, out, manifest) {
+  const binaries = [
     ['bin/node', 'bin/node'],
     ['bin/aria2c', 'bin/aria2c'],
   ]
-  for (const [from, to] of sources) {
+  for (const [from, to] of binaries) {
     const source = path.join(prefix, from)
     if (!existsSync(source)) throw new Error(`missing in prefix: ${source}`)
     await mkdir(path.dirname(path.join(out, to)), { recursive: true })
     await copyFile(source, path.join(out, to))
     await chmod(path.join(out, to), 0o755)
   }
-  // Copy every library the manifest knows about; later stages keep only the
-  // ones the binaries actually reference.
-  const libDir = path.join(prefix, 'lib')
   const wanted = new Set()
-  for (const entry of Object.values(
-    JSON.parse(await readFile(MANIFEST_PATH, 'utf8')).packages
-  )) {
-    for (const provided of entry.provides) {
+  for (const spec of Object.values(manifest.packages)) {
+    for (const provided of spec.provides) {
       if (provided.startsWith('lib/')) wanted.add(provided.slice('lib/'.length))
     }
   }
   await mkdir(path.join(out, 'lib'), { recursive: true })
   for (const name of wanted) {
-    const source = path.join(libDir, name)
-    if (!existsSync(source)) {
-      throw new Error(`missing library in prefix: ${source}`)
-    }
+    const source = path.join(prefix, 'lib', name)
+    if (!existsSync(source)) throw new Error(`missing library in prefix: ${source}`)
     await copyFile(source, path.join(out, 'lib', name))
   }
-  return { mode: 'prefix', copied: wanted.size }
+  return { mode: 'prefix', copied: wanted.size, versions: {} }
 }
 
-async function fetchFromDebs(out) {
-  const manifest = JSON.parse(await readFile(MANIFEST_PATH, 'utf8'))
+async function fetchFromDebs(out, manifest) {
+  const { base, index } = await loadIndex(manifest)
   const unpackRoot = await mkdtemp(path.join(tmpdir(), 'motrix-termux-'))
+  const versions = {}
   try {
-    for (const [label, entry] of Object.entries(manifest.packages)) {
-      const bytes = await fetchFromRepos(entry, label)
-      await extractDeb(bytes, unpackRoot, label)
+    const resolved = []
+    for (const [name, spec] of Object.entries(manifest.packages)) {
+      const record = resolvePackage(name, spec, index)
+      versions[name] = record.version
+      resolved.push(record)
+    }
+
+    for (const record of resolved) {
+      const bytes = await fetchBytes(`${base}/${record.filename}`)
+      const digest = sha512Hex(bytes)
+      if (digest !== record.sha512) {
+        throw new Error(
+          `digest mismatch for ${record.filename}\n  index ${record.sha512}\n  actual ${digest}`
+        )
+      }
+      await extractDeb(bytes, unpackRoot, record.name)
       process.stdout.write(
-        `[termux] ${entry.filename} verified (${bytes.length} bytes) and unpacked\n`
+        `[termux] ${record.filename} ${record.version} verified and unpacked\n`
       )
     }
-    const copied = []
+
     await mkdir(path.join(out, 'bin'), { recursive: true })
     await mkdir(path.join(out, 'lib'), { recursive: true })
-    for (const entry of Object.values(manifest.packages)) {
-      for (const provided of entry.provides) {
+    let copied = 0
+    for (const spec of Object.values(manifest.packages)) {
+      for (const provided of spec.provides) {
         const source = path.join(unpackRoot, provided)
-        if (!existsSync(source)) {
-          throw new Error(`deb payload missing ${provided}`)
-        }
+        if (!existsSync(source)) throw new Error(`deb payload missing ${provided}`)
         const target = path.join(out, provided)
         await copyFile(source, target)
         if (provided.startsWith('bin/')) await chmod(target, 0o755)
-        copied.push(provided)
+        copied += 1
       }
     }
-    return { mode: 'deb', copied: copied.length }
+    return { mode: 'deb', copied, versions }
   } finally {
     await rm(unpackRoot, { recursive: true, force: true })
   }
@@ -233,15 +277,27 @@ export async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv)
   const out = args.out
   if (!out) throw new Error('--out <dir> is required')
+  const manifest = await readManifest()
   await rm(out, { recursive: true, force: true })
   await mkdir(out, { recursive: true })
   const result = args['from-prefix']
-    ? await copyFromPrefix(path.resolve(args['from-prefix']), out)
-    : await fetchFromDebs(out)
+    ? await copyFromPrefix(path.resolve(args['from-prefix']), out, manifest)
+    : await fetchFromDebs(out, manifest)
   const listing = await readdir(path.join(out, 'lib'))
   process.stdout.write(
     `[termux] runtime staged from ${result.mode}: ${result.copied} entries, ${listing.length} libraries in ${out}\n`
   )
+  if (Object.keys(result.versions).length > 0) {
+    process.stdout.write(
+      `[termux] versions: ${Object.entries(result.versions)
+        .map(([name, version]) => `${name}@${version}`)
+        .join(', ')}\n`
+    )
+    await writeFile(
+      path.join(out, 'motrix-termux-versions.json'),
+      `${JSON.stringify(result.versions, null, 2)}\n`
+    )
+  }
   return 0
 }
 

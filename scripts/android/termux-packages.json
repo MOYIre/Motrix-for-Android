@@ -1,29 +1,25 @@
 {
-  "_comment": "Pinned Termux aarch64 packages whose binaries back the Android app runtime. Every entry is verified by SHA512 before extraction. Bump the version, filename and digest together; `file` and the sha512 come from the Termux apt index. TERMUX_REPO_BASE may override the download origin (mirrors rotate).",
+  "_comment": "Termux packages whose binaries back the Android app runtime. Filenames and digests are resolved from the live apt index at build time (Termux prunes superseded versions), so entries carry an expected version prefix instead of a frozen URL; `expectedVersionPrefix` is enforced where a silent major-version jump would change the Node ABI. TERMUX_REPO_BASE overrides the download origin.",
   "architecture": "aarch64",
+  "index": {
+    "path": "dists/stable/main/binary-aarch64/Packages.gz",
+    "bases": [
+      "https://packages.termux.dev/apt/termux-main",
+      "https://is.mirror.flokinet.net/termux/termux-main"
+    ]
+  },
   "packages": {
     "nodejs": {
-      "filename": "nodejs_26.3.1_aarch64.deb",
-      "path": "pool/main/n/nodejs/nodejs_26.3.1_aarch64.deb",
-      "sha512": "bd3cc1bff31863311b145d12b4378389c950d53021b21e980a0b69d73e25020da4e4b12e0a48af342adb0e0ced68508b531e24f7283ea8c42e82c1c93d449d9e",
-      "provides": ["bin/node"]
+      "provides": ["bin/node"],
+      "expectedVersionPrefix": "26."
     },
     "aria2": {
-      "filename": "aria2_1.37.0-3_aarch64.deb",
-      "path": "pool/main/a/aria2/aria2_1.37.0-3_aarch64.deb",
-      "sha512": "6b50e956f2894dd6164189fe877b165ca1967390156287ac6c128f6ed5c2f48f9cb1ffed4a7659d9eec15f2f004521c59274ce61edb113f6fa8517d55e7dc499",
       "provides": ["bin/aria2c"]
     },
     "openssl": {
-      "filename": "openssl_1%3a3.6.3_aarch64.deb",
-      "path": "pool/main/o/openssl/openssl_1%3a3.6.3_aarch64.deb",
-      "sha512": "8fbe8693a5ca8007c1ccc34111213579a5d0429d5fa1d50724edb937e4e7f37aa7c8da3b3a97b108202e91e6cfc25186e101b7da9422cabc83a3aeb5a10091b8",
       "provides": ["lib/libcrypto.so.3", "lib/libssl.so.3"]
     },
     "libicu": {
-      "filename": "libicu_78.3_aarch64.deb",
-      "path": "pool/main/libi/libicu/libicu_78.3_aarch64.deb",
-      "sha512": "58a639f1cc43987803800d671cc5f1ad04440316251a46d1618e1010da6e172901904f2e34aa2154c7fad4e058edacf4cc35e7b20c3739c30543244d9a61b2c3",
       "provides": [
         "lib/libicui18n.so.78",
         "lib/libicuuc.so.78",
@@ -31,39 +27,21 @@
       ]
     },
     "libxml2": {
-      "filename": "libxml2_2.15.3_aarch64.deb",
-      "path": "pool/main/libx/libxml2/libxml2_2.15.3_aarch64.deb",
-      "sha512": "8a5c439676a005a4db801eedea754f9ba0f7d278f9a6dc3f32a220758be3dd9aeaefc80b7e975a21dfe3d88d1fa5522fba50efd5f33ec73ba6a1a30c70fd875a",
       "provides": ["lib/libxml2.so.16"]
     },
     "libsqlite": {
-      "filename": "libsqlite_3.53.2_aarch64.deb",
-      "path": "pool/main/libs/libsqlite/libsqlite_3.53.2_aarch64.deb",
-      "sha512": "101deace02c7ecaec57d3e7632a3740f392b2ace54b41b04303b53955f4ac13c0defb2ba1b594237c15d0f906d35365320e1182ca61d0a9e8949d4d1ba82f399",
       "provides": ["lib/libsqlite3.so"]
     },
     "zlib": {
-      "filename": "zlib_1.3.2_aarch64.deb",
-      "path": "pool/main/z/zlib/zlib_1.3.2_aarch64.deb",
-      "sha512": "d6747d02e0cbbd11b575546d0bfec183371468ef2fbf1cd5594d6a747fbd607ac86985faea515897968a8b4fbdc1ad0cbf1b16bca0ddbe347e33b456059ced29",
       "provides": ["lib/libz.so.1"]
     },
     "libiconv": {
-      "filename": "libiconv_1.18-1_aarch64.deb",
-      "path": "pool/main/libi/libiconv/libiconv_1.18-1_aarch64.deb",
-      "sha512": "c4b7ed8cb90beb719b5a84baa5e2acb1fd0cee0753990e3d33987290fdf7c5c647dc5d8e676dc8112c390175ed18bada3844255522262bce12b26ddd74079a75",
       "provides": ["lib/libiconv.so"]
     },
-    "libcxx": {
-      "filename": "libc%2b%2b_29_aarch64.deb",
-      "path": "pool/main/libc/libc%2b%2b/libc%2b%2b_29_aarch64.deb",
-      "sha512": "953fb1d7a68b288df0cad81ca6a3e3cd3fd7b71a6990e196f27d7d9e3228056a75a212b58d5b86a873af557407db180e63590f6f53ea9d52bd96d569a8da5b91",
+    "libc++": {
       "provides": ["lib/libc++_shared.so"]
     },
     "c-ares": {
-      "filename": "c-ares_1.34.6_aarch64.deb",
-      "path": "pool/main/c/c-ares/c-ares_1.34.6_aarch64.deb",
-      "sha512": "66abbcb521da17eeea3a92f60da954471f61fb34057f4f940e39800d909a3ec746e5e3159c3bae4fa228765b076b3c648912cea2ddf3dfe3665d9b15da4b0ab3",
       "provides": ["lib/libcares.so"]
     }
   }
