@@ -176,4 +176,4 @@ jobs:
             --title "Motrix for Android (latest)" \
             --notes "自动构建（commit $GITHUB_SHA）
 
-下载 *app-release.apk* 安装。签名密钥随仓库提交，仅供个人安装。"
+            下载 *app-release.apk* 安装。签名密钥随仓库提交，仅供个人安装。"
