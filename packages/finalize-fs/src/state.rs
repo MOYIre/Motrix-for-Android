@@ -517,8 +517,12 @@ impl State {
     fn capabilities(&self) -> Response<'static> {
         let mut response = Response::ok(None);
         response.platform = Some(std::env::consts::OS);
-        response.rename_no_replace =
-            Some(cfg!(any(target_os = "macos", target_os = "linux", windows)));
+        response.rename_no_replace = Some(cfg!(any(
+            target_os = "macos",
+            target_os = "linux",
+            target_os = "android",
+            windows
+        )));
         response.held_roots = Some(cfg!(any(unix, windows)));
         response.directory_sync = Some(cfg!(any(unix, windows)));
         response.held_artifacts = Some(cfg!(any(unix, windows)));
@@ -577,6 +581,13 @@ mod tests {
     #[test]
     fn capabilities_claim_only_the_implemented_native_boundaries() {
         let response = State::new().handle(Request::Capabilities);
+        #[cfg(any(target_os = "macos", target_os = "linux", target_os = "android"))]
+        {
+            // Android is gated with Linux: renameat2(RENAME_NOREPLACE) and
+            // directory fsync are available on the Android kernel (verified on
+            // device for both app-private and FUSE-backed public directories).
+            assert_eq!(response.rename_no_replace, Some(true));
+        }
         #[cfg(unix)]
         {
             assert_eq!(response.held_roots, Some(true));

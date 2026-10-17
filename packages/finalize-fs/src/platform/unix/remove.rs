@@ -20,7 +20,7 @@ fn assert_name_absent(parent: RawFd, name: &CString) -> io::Result<()> {
     }
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "android"))]
 fn isolate_opened_for_removal(
     artifact: &ArtifactHandle,
     quarantine_relative: &str,
@@ -59,7 +59,7 @@ fn isolate_opened_for_removal(
                 libc::RENAME_EXCL,
             )
         };
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "android"))]
         let result = unsafe {
             libc::syscall(
                 libc::SYS_renameat2,
@@ -105,7 +105,7 @@ fn isolate_opened_for_removal(
     ))
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "android")))]
 fn isolate_opened_for_removal(
     _artifact: &ArtifactHandle,
     quarantine_relative: &str,

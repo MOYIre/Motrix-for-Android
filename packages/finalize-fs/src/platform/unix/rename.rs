@@ -6,7 +6,7 @@ use std::ffi::CString;
 use std::io;
 use std::os::fd::AsRawFd;
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "android"))]
 pub(crate) fn rename_opened_no_replace(
     artifact: &ArtifactHandle,
     target: &RootHandle,
@@ -53,7 +53,7 @@ pub(crate) fn rename_opened_no_replace(
     sync_directories(&artifact.parent, &target_parent, same_parent)
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "android")))]
 pub(crate) fn rename_opened_no_replace(
     _artifact: &ArtifactHandle,
     _target: &RootHandle,
@@ -66,7 +66,7 @@ pub(crate) fn rename_opened_no_replace(
     ))
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "android"))]
 pub(crate) fn rename_no_replace(
     source: &RootHandle,
     source_relative: &str,
@@ -112,7 +112,7 @@ pub(crate) fn rename_no_replace(
     sync_directories(&source_parent, &target_parent, same_parent)
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "android")))]
 pub(crate) fn rename_no_replace(
     _source: &RootHandle,
     source_relative: &str,
@@ -127,7 +127,7 @@ pub(crate) fn rename_no_replace(
     ))
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "android"))]
 fn same_directory(
     source: &std::os::fd::OwnedFd,
     target: &std::os::fd::OwnedFd,
@@ -137,7 +137,7 @@ fn same_directory(
     Ok(source.st_dev == target.st_dev && source.st_ino == target.st_ino)
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "android"))]
 fn sync_directories(
     source: &std::os::fd::OwnedFd,
     target: &std::os::fd::OwnedFd,

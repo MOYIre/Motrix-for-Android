@@ -34,7 +34,7 @@ fn unchanged_file(artifact: &ArtifactHandle) -> io::Result<libc::stat> {
 }
 
 /// Install a second name. Source removal belongs to the durable host journal.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) fn link_opened_no_replace(
     artifact: &ArtifactHandle,
     target: &RootHandle,
@@ -60,7 +60,7 @@ pub(crate) fn link_opened_no_replace(
     Ok(())
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
 pub(crate) fn link_opened_no_replace(
     _: &ArtifactHandle,
     _: &RootHandle,

@@ -41,6 +41,10 @@ pub(super) fn directory_entries(directory: RawFd) -> io::Result<Vec<CString>> {
         unsafe {
             *libc::__errno_location() = 0;
         }
+        #[cfg(target_os = "android")]
+        unsafe {
+            *libc::__errno() = 0;
+        }
         #[cfg(target_os = "macos")]
         unsafe {
             *libc::__error() = 0;
@@ -87,7 +91,7 @@ pub(super) fn stat_opened(opened: RawFd) -> io::Result<libc::stat> {
     Ok(unsafe { value.assume_init() })
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "android"))]
 pub(super) fn artifact_stamp(value: &libc::stat) -> ArtifactStamp {
     ArtifactStamp {
         device: value.st_dev,
@@ -100,7 +104,10 @@ pub(super) fn artifact_stamp(value: &libc::stat) -> ArtifactStamp {
     }
 }
 
-#[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
+#[cfg(all(
+    unix,
+    not(any(target_os = "linux", target_os = "macos", target_os = "android"))
+))]
 pub(super) fn artifact_stamp(value: &libc::stat) -> ArtifactStamp {
     ArtifactStamp {
         device: value.st_dev,
