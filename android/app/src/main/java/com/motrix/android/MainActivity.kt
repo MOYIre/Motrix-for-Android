@@ -96,7 +96,7 @@ class MainActivity : Activity() {
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             movementMethod = android.text.method.ScrollingMovementMethod()
-            verticalScrollBarEnabled = true
+            setVerticalScrollBarEnabled(true)
         }
         container.addView(
             status,
