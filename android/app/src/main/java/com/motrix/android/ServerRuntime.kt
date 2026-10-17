@@ -150,6 +150,10 @@ class ServerRuntime(private val context: Context) {
         put("HOME", context.filesDir.absolutePath)
         put("TMPDIR", tempDir.absolutePath)
         put("LD_LIBRARY_PATH", nativeLibDir.absolutePath)
+        // Termux's aria2 needs the OpenSSL 3 "legacy" provider at startup; the
+        // provider modules ship inside the runtime so this points at a path the
+        // APK sandbox actually has.
+        put("OPENSSL_MODULES", File(runtimeDir, "ossl-modules").absolutePath)
         put("NODE_ENV", "production")
     }
 

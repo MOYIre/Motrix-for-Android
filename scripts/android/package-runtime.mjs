@@ -151,6 +151,17 @@ async function assembleBundle(repoRoot, stagingRoot, options) {
     })
   }
 
+  // aria2 requests the OpenSSL 3 "legacy" provider at startup; the provider
+  // modules travel inside the runtime so OPENSSL_MODULES can point at a path
+  // that exists in the APK sandbox.
+  const osslModulesDir = options.osslModulesDir
+  if (osslModulesDir && existsSync(osslModulesDir)) {
+    await cp(osslModulesDir, path.join(stagingRoot, 'ossl-modules'), {
+      recursive: true,
+      preserveTimestamps: true,
+    })
+  }
+
   const runtimeManifest = {
     name: 'motrix-android-runtime',
     version: options.version,
@@ -178,6 +189,7 @@ async function packageBundle(stagingRoot, zipPath) {
     'dist',
     'extra',
     'node_modules',
+    'ossl-modules',
     'motrix-android-runtime.json',
   ], { cwd: stagingRoot })
 }
@@ -241,6 +253,7 @@ async function main(argv) {
     betterSqlite3: args['better-sqlite3']
       ? path.resolve(args['better-sqlite3'])
       : undefined,
+    osslModulesDir: path.join(sysroot, 'ossl-modules'),
   })
   const zipPath = path.join(appDir, 'src', 'main', 'assets', 'runtime.zip')
   await packageBundle(stagingRoot, zipPath)

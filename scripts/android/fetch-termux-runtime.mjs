@@ -235,7 +235,29 @@ async function copyFromPrefix(prefix, out, manifest) {
   }
   // Libraries are resolved lazily by native-libs.mjs, which searches the
   // Termux prefix directly instead of copying a snapshot of its lib directory.
+  await copyOpenSslModules(
+    path.join(prefix, 'lib', 'ossl-modules'),
+    path.join(out, 'ossl-modules')
+  )
   return { mode: 'prefix', copied: binaries.length, versions: {} }
+}
+
+/**
+ * Termux's aria2 requests the OpenSSL 3 "legacy" provider at startup and fails
+ * with `OSSL_PROVIDER_load 'legacy' failed` when the module directory does not
+ * exist (the APK sandbox has no Termux prefix). The provider modules are staged
+ * next to the sysroot and pointed at via `OPENSSL_MODULES`.
+ */
+async function copyOpenSslModules(sourceModulesDir, targetModulesDir) {
+  if (!existsSync(sourceModulesDir)) return
+  await mkdir(targetModulesDir, { recursive: true })
+  for (const entry of await readdir(sourceModulesDir)) {
+    if (!entry.endsWith('.so')) continue
+    await copyFile(
+      path.join(sourceModulesDir, entry),
+      path.join(targetModulesDir, entry)
+    )
+  }
 }
 
 /**
@@ -307,6 +329,10 @@ async function fetchFromDebs(out, manifest) {
     const libSource = locateProvided(unpackRoot, 'lib')
     if (libSource) {
       await copyPackageLibraries(libSource, path.join(out, 'lib'))
+      await copyOpenSslModules(
+        path.join(libSource, 'ossl-modules'),
+        path.join(out, 'ossl-modules')
+      )
     }
     // The unpacked tree is shared by every package, so the library sweep above
     // already sees the union of all of them.
