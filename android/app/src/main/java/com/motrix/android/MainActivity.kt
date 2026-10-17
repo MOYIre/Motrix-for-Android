@@ -91,6 +91,12 @@ class MainActivity : Activity() {
         )
         status = TextView(this).apply {
             text = getString(R.string.startup_message)
+            // Failure diagnostics are a log tail: keep it small, monospaced and
+            // scrollable so the cause is readable on screen.
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            movementMethod = android.text.method.ScrollingMovementMethod()
+            verticalScrollBarEnabled = true
         }
         container.addView(
             status,
@@ -115,7 +121,13 @@ class MainActivity : Activity() {
             }
             ServerState.State.FAILED -> {
                 status.visibility = View.VISIBLE
-                status.text = getString(R.string.startup_failed)
+                status.text = buildString {
+                    append(getString(R.string.startup_failed))
+                    snapshot.detail?.takeIf { it.isNotBlank() }?.let { tail ->
+                        append("\n\n")
+                        append(tail)
+                    }
+                }
             }
             else -> {
                 status.visibility = View.VISIBLE

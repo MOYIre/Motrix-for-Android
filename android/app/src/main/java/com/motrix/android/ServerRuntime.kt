@@ -41,6 +41,21 @@ class ServerRuntime(private val context: Context) {
 
     private val markerFile = File(dataDir, "runtime-version")
 
+    /**
+     * Diagnostic log. It lives in the public Download folder so a failure can be
+     * read without adb or root; the app-private copy is the fallback when
+     * all-files access has not been granted yet.
+     */
+    val logFile: File
+        get() {
+            val publicLog = File(downloadsDir, LOG_FILE_NAME)
+            return if (downloadsDir.isDirectory && downloadsDir.canWrite()) {
+                publicLog
+            } else {
+                File(dataDir, LOG_FILE_NAME)
+            }
+        }
+
     private fun findFreePort(): Int = ServerSocket(0).use { it.localPort }
 
     private fun loadOrCreateToken(): String {
@@ -154,8 +169,29 @@ class ServerRuntime(private val context: Context) {
 
     fun baseUrl(): String = "http://127.0.0.1:$port/"
 
+    /** Append one diagnostic line, mirrored to logcat. Never throws. */
+    @Synchronized
+    fun appendLog(line: String) {
+        Log.i(TAG, line)
+        runCatching {
+            val target = logFile
+            target.parentFile?.mkdirs()
+            if (target.length() > 512 * 1024) target.delete()
+            target.appendText("${System.currentTimeMillis()} $line\n")
+        }
+    }
+
+    /** Tail of the diagnostic log, for display in the failure state. */
+    fun logTail(maxChars: Int = 4_000): String = runCatching {
+        val target = logFile
+        if (!target.isFile) return ""
+        val text = target.readText()
+        if (text.length <= maxChars) text else text.takeLast(maxChars)
+    }.getOrDefault("")
+
     companion object {
         private const val TAG = "MotrixRuntime"
+        private const val LOG_FILE_NAME = "motrix-android.log"
         private const val RUNTIME_VERSION_ASSET = "runtime-version.txt"
         private val TOKEN_PATTERN = Regex("^[A-Za-z0-9_-]{43,128}$")
 

@@ -5,8 +5,8 @@ package com.motrix.android
  *
  * The service starts the engine in the background while the activity may still
  * be creating its WebView; this holder lets the activity observe readiness
- * without polling. A plain callback keeps the module free of third-party
- * dependencies.
+ * without polling, and carries a diagnostic tail when startup fails. A plain
+ * callback keeps the module free of third-party dependencies.
  */
 object ServerState {
 
@@ -15,7 +15,8 @@ object ServerState {
     data class Snapshot(
         val state: State,
         val baseUrl: String?,
-        val operatorToken: String?
+        val operatorToken: String?,
+        val detail: String? = null
     )
 
     @Volatile
@@ -37,8 +38,13 @@ object ServerState {
     }
 
     @Synchronized
-    fun publish(state: State, baseUrl: String?, operatorToken: String?) {
-        current = Snapshot(state, baseUrl, operatorToken)
+    fun publish(
+        state: State,
+        baseUrl: String?,
+        operatorToken: String?,
+        detail: String? = null
+    ) {
+        current = Snapshot(state, baseUrl, operatorToken, detail)
         val value = current
         listeners.toList().forEach { it(value) }
     }

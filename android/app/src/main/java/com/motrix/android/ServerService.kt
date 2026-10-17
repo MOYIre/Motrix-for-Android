@@ -59,34 +59,54 @@ class ServerService : Service() {
         val runtime = ServerRuntime(applicationContext)
         this.runtime = runtime
         try {
+            runtime.appendLog("service start: abi=${Build.SUPPORTED_ABIS.firstOrNull()} api=${Build.VERSION.SDK_INT}")
+            runtime.appendLog("node=${runtime.nodeBinary.absolutePath} exists=${runtime.nodeBinary.isFile}")
+            runtime.appendLog("aria2=${runtime.aria2Binary.absolutePath} exists=${runtime.aria2Binary.isFile}")
+            runtime.appendLog("finalize=${runtime.finalizeBinary.absolutePath} exists=${runtime.finalizeBinary.isFile}")
+            runtime.appendLog("runtimeDir=${runtime.runtimeDir.absolutePath}")
             runtime.ensureRuntimeExtracted()
+            runtime.appendLog("runtime extracted, starting node on port ${runtime.port}")
             val running = runtime.startServer()
             process = running
-            pumpLogs(running)
+            pumpLogs(runtime, running)
             if (runtime.awaitReady(running)) {
-                ServerRuntime.log("server ready at ${runtime.baseUrl()}")
+                runtime.appendLog("server ready at ${runtime.baseUrl()}")
                 ServerState.publish(
                     ServerState.State.READY,
                     runtime.baseUrl(),
                     runtime.operatorToken
                 )
             } else {
-                ServerRuntime.log("server did not become ready")
-                ServerState.publish(ServerState.State.FAILED, null, null)
+                runtime.appendLog("server did not become ready (exit=${exitCode(running)})")
+                ServerState.publish(
+                    ServerState.State.FAILED,
+                    null,
+                    null,
+                    runtime.logTail()
+                )
             }
         } catch (error: Throwable) {
-            Log.e("MotrixServer", "failed to start the bundled server", error)
-            ServerState.publish(ServerState.State.FAILED, null, null)
+            runtime.appendLog("failed to start the bundled server: $error")
+            runtime.appendLog(error.stackTraceToString())
+            ServerState.publish(
+                ServerState.State.FAILED,
+                null,
+                null,
+                runtime.logTail()
+            )
         } finally {
             starting.set(false)
         }
     }
 
-    private fun pumpLogs(running: Process) {
+    private fun exitCode(running: Process): String =
+        runCatching { running.exitValue().toString() }.getOrDefault("running")
+
+    private fun pumpLogs(runtime: ServerRuntime, running: Process) {
         Thread {
             runCatching {
                 BufferedReader(InputStreamReader(running.inputStream)).useLines { lines ->
-                    lines.forEach { ServerRuntime.log(it) }
+                    lines.forEach { runtime.appendLog(it) }
                 }
             }
         }.apply { isDaemon = true }.start()
