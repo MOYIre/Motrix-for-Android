@@ -48,7 +48,10 @@ class MainActivity : Activity() {
     }
 
     private fun buildUi() {
-        val container = FrameLayout(this)
+        val container = FrameLayout(this).apply {
+            // Draw below the status bar and camera cutout instead of under it.
+            setFitsSystemWindows(true)
+        }
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -56,8 +59,11 @@ class MainActivity : Activity() {
             settings.cacheMode = WebSettings.LOAD_DEFAULT
             settings.mediaPlaybackRequiresUserGesture = false
             settings.setSupportZoom(false)
+            settings.setBuiltInZoomControls(false)
             settings.allowFileAccess = false
             settings.allowContentAccess = false
+            // No elastic bounce: download lists feel snappier without it.
+            overScrollMode = View.OVER_SCROLL_NEVER
             CookieManager.getInstance().setAcceptCookie(true)
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(

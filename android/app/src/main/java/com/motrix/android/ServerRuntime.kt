@@ -147,6 +147,8 @@ class ServerRuntime(private val context: Context) {
         // Loopback only: the device already has a UI, and nothing else on the
         // LAN should be able to reach a download engine.
         put("HOST", "127.0.0.1")
+        // The interface should greet the user in their language by default.
+        put("MOTRIX_HOST_LANGUAGE", "zh-CN")
         put("HOME", context.filesDir.absolutePath)
         put("TMPDIR", tempDir.absolutePath)
         put("LD_LIBRARY_PATH", nativeLibDir.absolutePath)

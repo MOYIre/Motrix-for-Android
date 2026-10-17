@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="color-scheme" content="light dark" />
+    <!-- The mobile shell renders this page full-width; without the viewport
+         tag WebView lays out at ~980px and the UI becomes a zoomed-out desktop
+         page on phones. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script>
       const windowId = new URLSearchParams(location.search).get("w") ?? "main";
       if (windowId === "main") {
