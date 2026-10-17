@@ -352,7 +352,7 @@ export async function main(argv = process.argv.slice(2)) {
   const result = args['from-prefix']
     ? await copyFromPrefix(path.resolve(args['from-prefix']), out, manifest)
     : await fetchFromDebs(out, manifest)
-  const listing = await readdir(path.join(out, 'lib'))
+  const listing = await readdir(path.join(out, 'lib')).catch(() => [])
   process.stdout.write(
     `[termux] runtime staged from ${result.mode}: ${result.copied} entries, ${listing.length} libraries in ${out}\n`
   )
