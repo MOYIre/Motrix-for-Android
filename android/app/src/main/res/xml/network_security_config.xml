@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Motrix server is served to the WebView over loopback HTTP, so cleartext
+  stays permitted for 127.0.0.1 only. Every other destination keeps the platform
+  default (HTTPS-only), and the WebView never loads a remote origin.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

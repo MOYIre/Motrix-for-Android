@@ -168,3 +168,6 @@ graphify-out/*
 
 .agents/
 skills-lock.json
+
+# Android packaging work directory and APK outputs
+build/android/

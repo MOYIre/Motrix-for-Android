@@ -1765,8 +1765,12 @@ async function main() {
     // and recovered Activity anchors have settled. Otherwise an early request
     // can observe an empty/partial TaskManager or a false TaskNotFound.
     const port = parseServerPort(process.env.PORT, 'PORT', 8080)
+    // The container path keeps publishing on all interfaces; an embedded host
+    // (the Android shell) pins loopback so the control plane is never reachable
+    // from the local network.
+    const host = process.env.HOST?.trim() || '0.0.0.0'
     try {
-      await app.listen({ port, host: '0.0.0.0' })
+      await app.listen({ port, host })
     } catch (err) {
       if (!shellAsyncWork.isAccepting()) return
       throw err

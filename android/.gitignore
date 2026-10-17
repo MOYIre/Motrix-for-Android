@@ -1,0 +1,15 @@
+# Motrix for Android — build outputs
+#
+# Everything below is produced by scripts/android/package-runtime.mjs and must
+# never be committed: the native library directory holds multi-megabyte Termux
+# binaries, and the asset archive holds the staged server bundle.
+app/src/main/jniLibs/
+app/src/main/assets/runtime.zip
+app/src/main/assets/runtime-version.txt
+
+# Gradle
+.gradle/
+build/
+local.properties
+*.iml
+.idea/

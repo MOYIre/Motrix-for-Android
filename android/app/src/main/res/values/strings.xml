@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Motrix</string>
+    <string name="notification_channel_name">Download service</string>
+    <string name="notification_title">Motrix is running</string>
+    <string name="notification_text">Downloads continue in the background</string>
+    <string name="startup_message">Starting the Motrix engine…</string>
+    <string name="startup_failed">The Motrix engine did not start.</string>
+    <string name="storage_permission_rationale">Motrix needs all-files access to save downloads to shared folders such as Download.</string>
+</resources>

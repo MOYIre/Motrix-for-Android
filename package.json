@@ -24,6 +24,8 @@
     "verify:electron-package": "node scripts/verify-electron-package.mjs",
     "smoke:electron-package": "pnpm run ensure:electron-runtime && node scripts/smoke-electron-package.mjs",
     "build:server": "pnpm run build:builtin && pnpm run build:legal && pnpm run check:plugin-security && node scripts/ensure-server-finalize-fs.mjs && vite build --config vite.server.config.ts && vite build --config vite.worker.config.ts && vite build --config vite.renderer.web.config.ts",
+    "build:android-runtime": "node scripts/android/package-runtime.mjs --app android/app",
+    "build:android-apk": "cd android && gradle assembleRelease",
     "stage:server": "node scripts/stage-server-app.mjs",
     "verify:server-package": "node scripts/verify-server-package.mjs",
     "smoke:server-package": "node scripts/smoke-server-package.mjs",

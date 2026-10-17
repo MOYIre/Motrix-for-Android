@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The WebView draws the whole UI, so the platform theme only needs a dark
+         background that matches the app while the server boots. -->
+    <style name="Theme.Motrix" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/motrix_background</item>
+        <item name="android:statusBarColor">@color/motrix_background</item>
+    </style>
+</resources>

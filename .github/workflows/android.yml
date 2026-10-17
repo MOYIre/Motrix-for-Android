@@ -1,0 +1,150 @@
+name: Android
+
+# Cloud build for the Motrix for Android APK.
+#
+# The APK is a shell around prebuilt artifacts, so the job first assembles the
+# server bundle (Vite builds), then stages the Android arm64 runtime leaves
+# (Termux packages, a cross-compiled better-sqlite3, the finalize sidecar) and
+# finally packages them with Gradle. The signing key is committed on purpose
+# (see android/keystore/keystore.properties) so the build needs no secrets.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'feat/android**'
+    paths:
+      - 'android/**'
+      - 'scripts/android/**'
+      - 'src/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'scripts/android/**'
+      - '.github/workflows/android.yml'
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      # Node version the APK ships (the Termux package pinned in
+      # scripts/android/termux-packages.json must match this series).
+      MOTRIX_ANDROID_NODE_VERSION: 26.3.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+
+      - name: Install Node toolchain
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        env:
+          # The Electron runtime is only needed by desktop packaging; the
+          # Android build assembles the Node server bundle instead.
+          MOTRIX_SKIP_ELECTRON_REBUILD: '1'
+          MOTRIX_SKIP_ENGINE_FETCH: '1'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build server bundle
+        run: |
+          pnpm run build:builtin
+          pnpm run check:plugin-security
+          pnpm exec vite build --config vite.server.config.ts
+          pnpm exec vite build --config vite.worker.config.ts
+          pnpm exec vite build --config vite.renderer.web.config.ts
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK and NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0 ndk;27.2.12479018'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Build the finalize sidecar for Android
+        env:
+          NDK_VERSION: 27.2.12479018
+        run: |
+          TOOLCHAIN="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/bin/aarch64-linux-android24-clang"
+          cargo build --manifest-path packages/finalize-fs/Cargo.toml \
+            --release --target aarch64-linux-android
+          cp packages/finalize-fs/target/aarch64-linux-android/release/motrix-finalize-fs \
+            build/android/motrix-finalize-fs
+
+      - name: Build better-sqlite3 for Android
+        env:
+          NDK_VERSION: 27.2.12479018
+        run: |
+          set -euo pipefail
+          TOOLCHAIN="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64"
+          export CC="$TOOLCHAIN/bin/aarch64-linux-android24-clang"
+          export CXX="$TOOLCHAIN/bin/aarch64-linux-android24-clang++"
+          export AR="$TOOLCHAIN/bin/llvm-ar"
+          export LD="$TOOLCHAIN/bin/ld.lld"
+          HEADERS_DIR="$RUNNER_TEMP/node-headers"
+          mkdir -p "$HEADERS_DIR"
+          curl -fsSL "https://nodejs.org/dist/v$MOTRIX_ANDROID_NODE_VERSION/node-v$MOTRIX_ANDROID_NODE_VERSION-headers.tar.gz" \
+            | tar -xz -C "$HEADERS_DIR" --strip-components=1
+          cd node_modules/better-sqlite3
+          rm -rf build prebuilds
+          pnpm exec node-gyp rebuild \
+            --arch=arm64 --dest-os=android --nodedir="$HEADERS_DIR"
+          mkdir -p "$GITHUB_WORKSPACE/build/android"
+          cp build/Release/better_sqlite3.node "$GITHUB_WORKSPACE/build/android/better_sqlite3.node"
+
+      - name: Stage runtime and native libraries
+        run: |
+          node scripts/android/package-runtime.mjs \
+            --app android/app \
+            --finalize-fs build/android/motrix-finalize-fs \
+            --better-sqlite3 build/android/better_sqlite3.node
+
+      - name: Assemble release APK
+        working-directory: android
+        run: |
+          gradle --no-daemon assembleRelease
+
+      - name: Collect APK
+        run: |
+          mkdir -p build/android/out
+          find android/app/build/outputs/apk -name '*.apk' -exec cp {} build/android/out/ \;
+          ls -la build/android/out
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: motrix-android-apk
+          path: build/android/out/*.apk
+          if-no-files-found: error
+          retention-days: 14
