@@ -17,18 +17,7 @@
 // server spawns has to come from the native library directory instead.
 
 import { spawnSync } from 'node:child_process'
-import {
-  chmod,
-  cp,
-  mkdir,
-  readFile,
-  readdir,
-  readlink,
-  realpath,
-  rm,
-  stat,
-  writeFile,
-} from 'node:fs/promises'
+import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'

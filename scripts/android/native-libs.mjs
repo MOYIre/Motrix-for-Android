@@ -21,6 +21,7 @@
 //     [--verify-run]
 
 import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { chmod, copyFile, mkdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
