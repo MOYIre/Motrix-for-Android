@@ -146,10 +146,23 @@ export async function main(argv) {
       .map((entry) => path.resolve(entry)),
   ]
   const entries = [
-    { source: path.join(termuxRoot, 'bin', 'node'), name: 'libnode.so' },
-    { source: path.join(termuxRoot, 'bin', 'aria2c'), name: 'libaria2c.so' },
-    { source: finalizeFs, name: 'libmotrix-finalize-fs.so' },
+    { source: path.join(termuxRoot, 'bin', 'node'), name: 'libnode.so', kind: 'executable' },
+    { source: path.join(termuxRoot, 'bin', 'aria2c'), name: 'libaria2c.so', kind: 'executable' },
+    { source: finalizeFs, name: 'libmotrix-finalize-fs.so', kind: 'executable' },
   ]
+  // aria2 loads the OpenSSL "legacy" provider at startup. The provider module
+  // gets the same soname/runpath treatment as every other library, so once the
+  // shell copies it into the runtime as `legacy.so` (beside a `libcrypto.so`)
+  // OpenSSL can load it inside the APK sandbox.
+  const legacySource = path.join(termuxRoot, 'ossl-modules', 'legacy.so')
+  if (existsSync(legacySource)) {
+    entries.push({
+      source: legacySource,
+      name: 'liblegacy.so',
+      kind: 'library',
+      original: 'legacy.so',
+    })
+  }
   for (const entry of entries) {
     await stat(entry.source).catch(() => {
       throw new Error(`missing runtime entry: ${entry.source}`)
@@ -177,7 +190,11 @@ export async function main(argv) {
     const target = path.join(out, entry.name)
     await copyFile(entry.source, target)
     await chmod(target, 0o755)
-    installed.push({ name: entry.name, kind: 'executable' })
+    installed.push({
+      name: entry.name,
+      kind: entry.kind,
+      original: entry.original,
+    })
   }
   for (const [name, detail] of needed) {
     const target = path.join(out, name)

@@ -159,11 +159,29 @@ class ServerRuntime(private val context: Context) {
 
     fun startServer(): Process {
         tempDir.mkdirs()
+        prepareOsslModules()
         val builder = ProcessBuilder(nodeBinary.absolutePath, "dist/server/index.mjs")
             .directory(runtimeDir)
             .redirectErrorStream(true)
         builder.environment().putAll(environment())
         return builder.start()
+    }
+
+    /**
+     * aria2 loads the OpenSSL 3 "legacy" provider at startup, and OpenSSL finds
+     * it only by its exact name in the modules directory. The shell ships a
+     * patched `liblegacy.so` (sonames rewritten, $ORIGIN runpath) in the native
+     * library directory; this stages it as `legacy.so` next to `libcrypto.so`
+     * under app storage, where its $ORIGIN runpath resolves.
+     */
+    private fun prepareOsslModules() {
+        val modulesDir = File(runtimeDir, "ossl-modules")
+        if (File(modulesDir, "legacy.so").isFile) return
+        modulesDir.mkdirs()
+        File(nativeLibDir, "liblegacy.so")
+            .copyTo(File(modulesDir, "legacy.so"), overwrite = true)
+        File(nativeLibDir, "libcrypto.so")
+            .copyTo(File(modulesDir, "libcrypto.so"), overwrite = true)
     }
 
     /** Block until the HTTP control plane answers, or the process dies. */
