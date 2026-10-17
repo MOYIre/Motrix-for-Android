@@ -215,6 +215,11 @@ async function main(argv) {
   }
 
   const jniLibs = path.join(appDir, 'src', 'main', 'jniLibs', 'arm64-v8a')
+  // A prefix run stages only the binaries, so the libraries they reference are
+  // resolved straight out of the live Termux installation.
+  const librarySearch = args['from-prefix']
+    ? ['--library-search', path.join(path.resolve(args['from-prefix']), 'lib')]
+    : []
   await installNativeLibs([
     '--termux-root',
     sysroot,
@@ -222,6 +227,7 @@ async function main(argv) {
     path.resolve(finalizeFs),
     '--out',
     jniLibs,
+    ...librarySearch,
     ...(args.flags.has('verify-run') ? ['--verify-run'] : []),
   ])
 

@@ -93,22 +93,29 @@ export function renameFor(soname) {
   return SONAME_RENAMES.get(soname) ?? soname
 }
 
-// Breadth-first walk of DT_NEEDED from the shipped executables. Libraries that
-// live in the Termux sysroot are bundled; anything else is assumed to come from
-// the platform.
-export function collectClosure(entryFiles, sysrootLib, exists) {
+// Breadth-first walk of DT_NEEDED from the shipped executables. Libraries found
+// in a search directory are bundled; anything else is assumed to come from the
+// platform.
+export function collectClosure(entryFiles, searchDirs, exists) {
   const needed = new Map()
   const missing = []
   const queue = [...entryFiles]
   const seen = new Set()
+  const locate = (soname) => {
+    for (const dir of searchDirs) {
+      const candidate = path.join(dir, soname)
+      if (exists(candidate)) return candidate
+    }
+    return undefined
+  }
   while (queue.length > 0) {
     const current = queue.shift()
     for (const soname of printNeeded(current)) {
       if (SYSTEM_LIBRARIES.has(soname)) continue
       const bundledName = renameFor(soname)
       if (needed.has(bundledName) || seen.has(bundledName)) continue
-      const source = path.join(sysrootLib, soname)
-      if (!exists(source)) {
+      const source = locate(soname)
+      if (!source) {
         missing.push({ from: path.basename(current), soname })
         continue
       }
@@ -130,6 +137,14 @@ export async function main(argv) {
   }
 
   const sysrootLib = path.join(termuxRoot, 'lib')
+  const searchDirs = [
+    sysrootLib,
+    ...(args['library-search'] ?? '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+      .map((entry) => path.resolve(entry)),
+  ]
   const entries = [
     { source: path.join(termuxRoot, 'bin', 'node'), name: 'libnode.so' },
     { source: path.join(termuxRoot, 'bin', 'aria2c'), name: 'libaria2c.so' },
@@ -143,7 +158,7 @@ export async function main(argv) {
 
   const { needed, missing } = collectClosure(
     entries.map((entry) => entry.source),
-    sysrootLib,
+    searchDirs,
     (candidate) => existsSync(candidate)
   )
   if (missing.length > 0) {

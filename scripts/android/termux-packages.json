@@ -1,5 +1,5 @@
 {
-  "_comment": "Termux packages whose binaries back the Android app runtime. Filenames and digests are resolved from the live apt index at build time (Termux prunes superseded versions), so entries carry an expected version prefix instead of a frozen URL; `expectedVersionPrefix` is enforced where a silent major-version jump would change the Node ABI. TERMUX_REPO_BASE overrides the download origin.",
+  "_comment": "Termux packages whose binaries back the Android app runtime. Filenames and digests are resolved from the live apt index at build time (Termux prunes superseded versions), so entries carry an expected version prefix instead of a frozen URL; `expectedVersionPrefix` is enforced where a silent major-version jump would change the Node ABI. Every package's libraries are staged into the sysroot and `scripts/android/native-libs.mjs` bundles only the ones the binaries actually reference. TERMUX_REPO_BASE overrides the download origin.",
   "architecture": "aarch64",
   "index": {
     "path": "dists/stable/main/binary-aarch64/Packages.gz",
@@ -10,39 +10,23 @@
   },
   "packages": {
     "nodejs": {
-      "provides": ["bin/node"],
+      "binaries": ["bin/node"],
       "expectedVersionPrefix": "26."
     },
     "aria2": {
-      "provides": ["bin/aria2c"]
+      "binaries": ["bin/aria2c"]
     },
-    "openssl": {
-      "provides": ["lib/libcrypto.so.3", "lib/libssl.so.3"]
-    },
-    "libicu": {
-      "provides": [
-        "lib/libicui18n.so.78",
-        "lib/libicuuc.so.78",
-        "lib/libicudata.so.78"
-      ]
-    },
-    "libxml2": {
-      "provides": ["lib/libxml2.so.16"]
-    },
-    "libsqlite": {
-      "provides": ["lib/libsqlite3.so"]
-    },
-    "zlib": {
-      "provides": ["lib/libz.so.1"]
-    },
-    "libiconv": {
-      "provides": ["lib/libiconv.so"]
-    },
-    "libc++": {
-      "provides": ["lib/libc++_shared.so"]
-    },
-    "c-ares": {
-      "provides": ["lib/libcares.so"]
-    }
+    "openssl": {},
+    "libicu": {},
+    "libxml2": {},
+    "libsqlite": {},
+    "zlib": {},
+    "libiconv": {},
+    "libc++": {},
+    "c-ares": {},
+    "libffi": {},
+    "liblzma": {},
+    "libandroid-support": {},
+    "zstd": {}
   }
 }

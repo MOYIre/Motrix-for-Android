@@ -33,6 +33,7 @@ import {
   readFile,
   readdir,
   rm,
+  stat,
   writeFile,
 } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -220,30 +221,47 @@ export function locateProvided(root, provided, exists = existsSync) {
 }
 
 async function copyFromPrefix(prefix, out, manifest) {
-  const binaries = [
-    ['bin/node', 'bin/node'],
-    ['bin/aria2c', 'bin/aria2c'],
-  ]
-  for (const [from, to] of binaries) {
-    const source = path.join(prefix, from)
-    if (!existsSync(source)) throw new Error(`missing in prefix: ${source}`)
-    await mkdir(path.dirname(path.join(out, to)), { recursive: true })
-    await copyFile(source, path.join(out, to))
-    await chmod(path.join(out, to), 0o755)
-  }
-  const wanted = new Set()
+  const binaries = []
   for (const spec of Object.values(manifest.packages)) {
-    for (const provided of spec.provides) {
-      if (provided.startsWith('lib/')) wanted.add(provided.slice('lib/'.length))
+    for (const binary of spec.binaries ?? []) binaries.push(binary)
+  }
+  for (const binary of binaries) {
+    const source = path.join(prefix, binary)
+    if (!existsSync(source)) throw new Error(`missing in prefix: ${source}`)
+    const target = path.join(out, binary)
+    await mkdir(path.dirname(target), { recursive: true })
+    await copyFile(source, target)
+    await chmod(target, 0o755)
+  }
+  // Libraries are resolved lazily by native-libs.mjs, which searches the
+  // Termux prefix directly instead of copying a snapshot of its lib directory.
+  return { mode: 'prefix', copied: binaries.length, versions: {} }
+}
+
+/**
+ * Copy every regular library file out of an unpacked package. Termux ships
+ * symlink chains (`libz.so` -> `libz.so.1`); only the referents matter, and
+ * copying them under their own names keeps the closure walker able to match
+ * the sonames the binaries ask for.
+ */
+export async function copyPackageLibraries(sourceLibDir, targetLibDir) {
+  if (!existsSync(sourceLibDir)) return 0
+  await mkdir(targetLibDir, { recursive: true })
+  let copied = 0
+  for (const entry of await readdir(sourceLibDir, { withFileTypes: true })) {
+    const source = path.join(sourceLibDir, entry.name)
+    let isRegular = entry.isFile()
+    if (entry.isSymbolicLink()) {
+      isRegular = await stat(source).then(
+        (info) => info.isFile(),
+        () => false
+      )
     }
+    if (!isRegular) continue
+    await copyFile(source, path.join(targetLibDir, entry.name))
+    copied += 1
   }
-  await mkdir(path.join(out, 'lib'), { recursive: true })
-  for (const name of wanted) {
-    const source = path.join(prefix, 'lib', name)
-    if (!existsSync(source)) throw new Error(`missing library in prefix: ${source}`)
-    await copyFile(source, path.join(out, 'lib', name))
-  }
-  return { mode: 'prefix', copied: wanted.size, versions: {} }
+  return copied
 }
 
 async function fetchFromDebs(out, manifest) {
@@ -276,16 +294,22 @@ async function fetchFromDebs(out, manifest) {
     await mkdir(path.join(out, 'lib'), { recursive: true })
     let copied = 0
     for (const spec of Object.values(manifest.packages)) {
-      for (const provided of spec.provides) {
-        const source = locateProvided(unpackRoot, provided)
-        if (!source) throw new Error(`deb payload missing ${provided}`)
-        const target = path.join(out, provided)
+      for (const binary of spec.binaries ?? []) {
+        const source = locateProvided(unpackRoot, binary)
+        if (!source) throw new Error(`deb payload missing ${binary}`)
+        const target = path.join(out, binary)
         await mkdir(path.dirname(target), { recursive: true })
         await copyFile(source, target)
-        if (provided.startsWith('bin/')) await chmod(target, 0o755)
+        await chmod(target, 0o755)
         copied += 1
       }
     }
+    const libSource = locateProvided(unpackRoot, 'lib')
+    if (libSource) {
+      await copyPackageLibraries(libSource, path.join(out, 'lib'))
+    }
+    // The unpacked tree is shared by every package, so the library sweep above
+    // already sees the union of all of them.
     return { mode: 'deb', copied, versions }
   } finally {
     await rm(unpackRoot, { recursive: true, force: true })
