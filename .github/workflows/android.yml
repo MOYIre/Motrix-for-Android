@@ -99,6 +99,7 @@ jobs:
           export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/bin/aarch64-linux-android24-clang"
           cargo build --manifest-path packages/finalize-fs/Cargo.toml \
             --release --target aarch64-linux-android
+          mkdir -p build/android
           cp packages/finalize-fs/target/aarch64-linux-android/release/motrix-finalize-fs \
             build/android/motrix-finalize-fs
 
@@ -129,6 +130,11 @@ jobs:
             --app android/app \
             --finalize-fs build/android/motrix-finalize-fs \
             --better-sqlite3 build/android/better_sqlite3.node
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14'
 
       - name: Assemble release APK
         working-directory: android
