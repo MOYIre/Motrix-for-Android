@@ -31,7 +31,13 @@ class ServerRuntime(private val context: Context) {
     val runtimeDir = File(context.filesDir, "runtime")
     val dataDir = File(context.filesDir, "data")
     val tempDir = File(context.cacheDir, "tmp")
-    val downloadsDir = File("/storage/emulated/0/Download")
+
+    /**
+     * The server hard-fails at startup when its save directory is not writable,
+     * so the public Download folder is only advertised once all-files access has
+     * been granted; before that, downloads land in app-private storage.
+     */
+    val downloadsDir: File = pickDownloadsDir(context)
 
     /** Loopback port the server listens on; chosen once per process start. */
     val port: Int = findFreePort()
@@ -57,6 +63,20 @@ class ServerRuntime(private val context: Context) {
         }
 
     private fun findFreePort(): Int = ServerSocket(0).use { it.localPort }
+
+    private fun pickDownloadsDir(context: Context): File {
+        val public = File("/storage/emulated/0/Download")
+        val writable = runCatching {
+            if (!public.isDirectory) {
+                return@runCatching false
+            }
+            val probe = File(public, ".motrix-write-probe-${Process.myPid()}")
+            val created = probe.createNewFile()
+            if (created) probe.delete()
+            created
+        }.getOrDefault(false)
+        return if (writable) public else File(context.filesDir, "downloads")
+    }
 
     private fun loadOrCreateToken(): String {
         val file = File(dataDir, "operator-token")
