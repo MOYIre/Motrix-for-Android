@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   apk:
@@ -160,3 +160,20 @@ jobs:
           path: build/android/out/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish APK to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A rolling "android-latest" release keeps exactly one installable
+          # build visible on the Releases page.
+          RELEASE_TAG="android-latest"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release delete "$RELEASE_TAG" --yes --cleanup-tag
+          fi
+          gh release create "$RELEASE_TAG" build/android/out/*.apk \
+            --title "Motrix for Android (latest)" \
+            --notes "自动构建（commit $GITHUB_SHA）
+
+下载 *app-release.apk* 安装。签名密钥随仓库提交，仅供个人安装。"
